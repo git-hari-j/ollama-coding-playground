@@ -133,4 +133,4 @@ if model_name:
         except Exception as e:
             st.error(f"An error occurred: {e}")
 else:
-    st.info("Please select a model from the sidebar to begin.")
+    st.info("Please select a model from the sidebar to begin.") 
