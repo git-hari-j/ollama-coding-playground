@@ -8,12 +8,12 @@ from langchain_ollama.llms import OllamaLLM
 st.set_page_config(
     page_title="Ollama Coding Playground",
     page_icon="🖥️",
-    layout="centered"
+    layout="wide"  # Use wide layout for a better chat UI
 )
 
 # Directory and file management
 HISTORY_DIR = Path("conversation_histories")
-HISTORY_DIR.mkdir(exist_ok=True)  # Ensure directory exists
+HISTORY_DIR.mkdir(exist_ok=True)
 
 # Ollama API base URL
 OLLAMA_API_URL = "http://localhost:11434/api"
@@ -58,45 +58,40 @@ def delete_sessions(session_ids):
             session_file.unlink()
 
 # --- Sidebar UI ---
-with st.sidebar:
-    st.title("Settings")
-    st.markdown("---")
-    
-    available_models = fetch_models()
-    if available_models:
-        model_name = st.selectbox("Select LLM Model", available_models)
-    else:
-        model_name = None
-        st.warning("No models found. Please ensure Ollama is running and models are installed.")
+st.sidebar.title("Settings")
+st.sidebar.markdown("---")
 
-    code_language = st.selectbox(
-        "Highlight Language",
-        ["python", "javascript", "java", "c++", "go", "bash", "html", "markdown", "auto"]
-    )
-    
-    st.markdown("---")
-    
-    # Session management
-    st.subheader("Chat Sessions")
-    session_ids = get_session_ids()
-    
-    if session_ids:
-        selected_sessions = st.multiselect("Select Sessions to Delete", session_ids)
-        if st.button("Delete Selected Sessions", use_container_width=True):
-            delete_sessions(selected_sessions)
-            st.success("Selected sessions deleted!")
-            st.rerun()
-    else:
-        st.info("No chat sessions available.")
+available_models = fetch_models()
+if available_models:
+    model_name = st.sidebar.selectbox("Select LLM Model", available_models)
+else:
+    model_name = None
+    st.sidebar.warning("No models found. Ensure Ollama is running and models are installed.")
 
-    # Save current session
-    current_session_name = st.text_input("Save this session as:", "")
-    if st.button("Save Current Chat", use_container_width=True):
-        if current_session_name:
-            save_history(current_session_name, st.session_state.messages)
-            st.success(f"Session '{current_session_name}' saved!")
-        else:
-            st.warning("Please enter a session name.")
+# Popular programming languages dropdown
+programming_languages = ["Python", "JavaScript", "Java", "C++", "Go", "Bash", "HTML", "Markdown"]
+selected_language = st.sidebar.selectbox("Select Programming Language", programming_languages)
+
+# Session management
+st.sidebar.subheader("Chat Sessions")
+session_ids = get_session_ids()
+if session_ids:
+    selected_sessions = st.sidebar.multiselect("Select Sessions to Delete", session_ids)
+    if st.sidebar.button("Delete Selected Sessions"):
+        delete_sessions(selected_sessions)
+        st.sidebar.success("Selected sessions deleted!")
+        st.rerun()  # Refresh the sidebar
+else:
+    st.sidebar.info("No chat sessions available.")
+
+# Single Save Session input
+current_session_name = st.sidebar.text_input("Save this session as:", key="unique_save_session_input")
+if st.sidebar.button("Save Current Chat"):
+    if current_session_name:
+        save_history(current_session_name, st.session_state.messages)
+        st.sidebar.success(f"Session '{current_session_name}' saved!")
+    else:
+        st.sidebar.warning("Please enter a session name.")
 
 # --- Main App UI ---
 st.title("Ollama Coding Playground 🖥️")
@@ -109,28 +104,29 @@ selected_session_id = st.sidebar.selectbox("Load Chat Session", [""] + session_i
 if selected_session_id:
     st.session_state.messages = load_history(selected_session_id)
 
+# Display chat messages in a styled manner
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# User input box for chat queries
 if model_name:
     if prompt := st.chat_input("Enter your code or query here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        # Generate response using the selected model
         try:
             llm = OllamaLLM(model=model_name)
+            # Prepend the programming language to the prompt for context
+            contextual_prompt = f"Please respond in the context of {selected_language}: {prompt}"
             with st.chat_message("assistant"):
-                full_response = st.write_stream(llm.stream(prompt))
+                full_response = st.write_stream(llm.stream(contextual_prompt))
 
             st.session_state.messages.append({"role": "assistant", "content": full_response})
-            # Save history of current chat dynamically
-            current_session_name = st.text_input("Save this session as:", "") 
-            if current_session_name:  
-                save_history(current_session_name, st.session_state.messages)
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
 else:
-    st.info("Please select a model from the sidebar to begin.") 
+    st.info("Please select a model from the sidebar to begin.")
